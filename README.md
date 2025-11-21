@@ -11,6 +11,7 @@ Acest document descrie activitățile realizate în Etapa 3, în cadrul proiectu
 
 ##  1. Structura Repository-ului Github (versiunea Etapei 3)
 
+```
 proiect_dark_data/
 ├── README.md              # Documentația proiectului
 ├── requirements.txt       # Lista dependențelor (tensorflow, pandas, streamlit)
@@ -27,6 +28,7 @@ proiect_dark_data/
     ├── preprocessing/     # Funcții de procesare text (TF-IDF)
     ├── data_acquisition/  # Scripturi generare date (generare_date_v2.py)
     └── neural_network/    # Scripturi antrenare și inferență (antrenare_date_Multitask.py)
+```
 
 ##  2. Descrierea Setului de Date
 
