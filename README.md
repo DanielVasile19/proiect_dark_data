@@ -46,6 +46,7 @@ proiect_dark_data/
 * **Format fișiere:** ☑ CSV (rapoarte_mentenanta_v2.csv).
 
 ### 2.3 Descrierea fiecărei caracteristici
+```
 
 | **Caracteristică** | **Tip**  **Descriere** | **Domeniu valori** |
 |-------------------|---------|-------------|---------------|--------------------|
@@ -54,6 +55,7 @@ proiect_dark_data/
 | eticheta_departament | categorial |Departamentul responsabil (Target 2)| 0–2.5 |
 | eticheta_urgenta | categorial |Nivelul de prioritate (Target 3) | ... |
 
+```
 ##  3. Analiza Exploratorie a Datelor (EDA) – Sintetic
 
 ### 3.1 Statistici descriptive aplicate
