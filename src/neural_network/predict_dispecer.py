@@ -1,66 +1,53 @@
-import tensorflow as tf
+import os
+import sys
 import joblib
 import numpy as np
-import sys
+import tensorflow as tf
 
-print("-------------------------------------------------")
-print("🚀 [Pasul 3] Script de Predicție 'Dispecer Inteligent'")
-print("-------------------------------------------------")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROCESSED_DIR = os.path.join(BASE_DIR, 'data', 'processed')
 
-# --- 1. ÎNCĂRCAREA MODELULUI ȘI A "TRADUCĂTOARELOR" ---
-print("Se încarcă modelul Multi-Task și toate componentele V2...")
-try:
-    model = tf.keras.models.load_model('model_dispecer_v2.keras')
-    vectorizer = joblib.load('vectorizer_v2.joblib')
-    encoder_problema = joblib.load('encoder_problema_v2.joblib')
-    encoder_departament = joblib.load('encoder_departament_v2.joblib')
-    encoder_urgenta = joblib.load('encoder_urgenta_v2.joblib')
-    print("✅ Toate componentele V2 au fost încărcate.")
-except Exception as e:
-    print(f"EROARE: Nu am putut încărca fișierele V2.")
-    print(f"Asigură-te că ai rulat 'antreneaza_model_MULTITASK.py' și că fișierele există.")
-    print(e)
-    sys.exit()
 
-# --- 2. TEXTUL NOU (Textul "Murdar" scris de tine) ---
-# Joacă-te cu această propoziție!
-# Folosește greșeli de scriere și expresii din generatorul V2
-text_nou_utilizator = "mtoor ars pe linia 1. Urgent, linia blocata."
+def incarca_modele():
+    try:
+        model = tf.keras.models.load_model(os.path.join(PROCESSED_DIR, 'model_dispecer_v2.keras'))
+        vectorizer = joblib.load(os.path.join(PROCESSED_DIR, 'vectorizer_v2.joblib'))
+        enc_prob = joblib.load(os.path.join(PROCESSED_DIR, 'encoder_problema_v2.joblib'))
+        enc_dep = joblib.load(os.path.join(PROCESSED_DIR, 'encoder_departament_v2.joblib'))
+        enc_urg = joblib.load(os.path.join(PROCESSED_DIR, 'encoder_urgenta_v2.joblib'))
+        return model, vectorizer, enc_prob, enc_dep, enc_urg
+    except Exception as e:
+        print(f"Eroare la incarcare modele: {e}")
+        sys.exit(1)
 
-print(f"\nSe analizează raportul: '{text_nou_utilizator}'")
 
-# --- 3. PROCESUL DE PREDICȚIE ---
+def prezice_raport(text):
+    model, vectorizer, enc_prob, enc_dep, enc_urg = incarca_modele()
 
-# 1. Transformăm textul nou în vectorul TF-IDF
-text_vec = vectorizer.transform([text_nou_utilizator])
+    text_vec = vectorizer.transform([text]).toarray()
+    pred = model.predict(text_vec, verbose=0)
 
-# 2. Convertim în formatul "dens" pe care îl vrea Keras
-text_gata = text_vec.toarray()
+    idx_p = np.argmax(pred[0][0])
+    idx_d = np.argmax(pred[1][0])
+    idx_u = np.argmax(pred[2][0])
 
-# 3. Facem predicția!
-# De data aceasta, 'predictie_bruta' va fi o LISTĂ cu 3 elemente (un array pt fiecare cap)
-predictie_bruta = model.predict(text_gata)
+    return {
+        'problema': enc_prob.inverse_transform([idx_p])[0],
+        'conf_p': pred[0][0][idx_p],
+        'departament': enc_dep.inverse_transform([idx_d])[0],
+        'conf_d': pred[1][0][idx_d],
+        'urgenta': enc_urg.inverse_transform([idx_u])[0],
+        'conf_u': pred[2][0][idx_u]
+    }
 
-# 4. Interpretăm fiecare ieșire (fiecare "cap")
-# Ieșirea 0: Problema
-prob_problema = predictie_bruta[0][0] # Luăm probabilitățile pentru problemă
-idx_problema = np.argmax(prob_problema) # Găsim indexul câștigător
-eticheta_problema = encoder_problema.inverse_transform([idx_problema])[0]
 
-# Ieșirea 1: Departament
-prob_departament = predictie_bruta[1][0]
-idx_departament = np.argmax(prob_departament)
-eticheta_departament = encoder_departament.inverse_transform([idx_departament])[0]
+if __name__ == "__main__":
+    text_test = "mtoor ars pe linia 1. Urgent, linia blocata."
+    rezultat = prezice_raport(text_test)
 
-# Ieșirea 2: Urgență
-prob_urgenta = predictie_bruta[2][0]
-idx_urgenta = np.argmax(prob_urgenta)
-eticheta_urgenta = encoder_urgenta.inverse_transform([idx_urgenta])[0]
-
-# --- 4. AFIȘAREA REZULTATULUI ---
-print("\n--- REZULTATUL ANALIZEI (Dispecer AI) ---")
-print(f"Text 'Dark Data':     '{text_nou_utilizator}'")
-print("------------------------------------------")
-print(f"Problemă Identificată:  {eticheta_problema} (Acuratețe: {prob_problema[idx_problema]*100:.2f}%)")
-print(f"Departament Alocat:     {eticheta_departament} (Acuratețe: {prob_departament[idx_departament]*100:.2f}%)")
-print(f"Urgență Stabilită:      {eticheta_urgenta} (Acuratețe: {prob_urgenta[idx_urgenta]*100:.2f}%)")
+    print("-" * 50)
+    print(f"Input: {text_test}")
+    print("-" * 50)
+    print(f"Problema:    {rezultat['problema']} ({rezultat['conf_p']:.2%})")
+    print(f"Departament: {rezultat['departament']} ({rezultat['conf_d']:.2%})")
+    print(f"Urgenta:     {rezultat['urgenta']} ({rezultat['conf_u']:.2%})")

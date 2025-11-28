@@ -6,7 +6,6 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
-from tensorflow.keras.callbacks import EarlyStopping
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 INPUT_FILE = os.path.join(BASE_DIR, 'data', 'raw', 'rapoarte_mentenanta_v2.csv')
@@ -20,7 +19,6 @@ def incarca_date():
 
 
 def antreneaza_model():
-    print("Initializare proces antrenare...")
     df = incarca_date()
 
     X_text = df['text_raport'].astype(str).tolist()
@@ -38,9 +36,7 @@ def antreneaza_model():
     num_clase_departament = len(encoder_departament.classes_)
     num_clase_urgenta = len(encoder_urgenta.classes_)
 
-    print("Vectorizare text (TF-IDF)...")
-    # Crestem max_features pentru a acoperi vocabularul extins
-    vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), max_features=7000)
+    vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), max_features=5000)
     X_vec = vectorizer.fit_transform(X_text)
     X_gata = X_vec.toarray()
 
@@ -48,7 +44,6 @@ def antreneaza_model():
         X_gata, y_problema, y_departament, y_urgenta, test_size=0.2, random_state=42
     )
 
-    print("Construire model neural...")
     inputs = tf.keras.layers.Input(shape=(X_gata.shape[1],))
     x = tf.keras.layers.Dense(128, activation='relu')(inputs)
     x = tf.keras.layers.Dropout(0.3)(x)
@@ -76,37 +71,26 @@ def antreneaza_model():
         }
     )
 
-    # Callback pentru Early Stopping
-    early_stop = EarlyStopping(
-        monitor='val_loss',
-        patience=3,
-        restore_best_weights=True,
-        verbose=1
-    )
-
-    print("Incepere antrenare...")
     model.fit(
         X_train,
         {'out_problema': y_train_prob, 'out_departament': y_train_dep, 'out_urgenta': y_train_urg},
-        epochs=20,  # Setam mai multe epoci, dar EarlyStopping va opri cand trebuie
+        epochs=15,
         batch_size=32,
         validation_data=(X_test,
                          {'out_problema': y_test_prob, 'out_departament': y_test_dep, 'out_urgenta': y_test_urg}),
-        callbacks=[early_stop],
         verbose=1
     )
 
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
 
-    print("Salvare modele...")
     model.save(os.path.join(OUTPUT_DIR, 'model_dispecer_v2.keras'))
     joblib.dump(vectorizer, os.path.join(OUTPUT_DIR, 'vectorizer_v2.joblib'))
     joblib.dump(encoder_problema, os.path.join(OUTPUT_DIR, 'encoder_problema_v2.joblib'))
     joblib.dump(encoder_departament, os.path.join(OUTPUT_DIR, 'encoder_departament_v2.joblib'))
     joblib.dump(encoder_urgenta, os.path.join(OUTPUT_DIR, 'encoder_urgenta_v2.joblib'))
 
-    print(f"Finalizat. Modele salvate in: {OUTPUT_DIR}")
+    print(f"Modele salvate in: {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":
