@@ -10,7 +10,7 @@
 Acest document descrie activitățile realizate în Etapa 3, în cadrul proiectului Analiza 	si Clasificarea Automata a Rapoartelor de Mentenanta Industriala. Scopul etapei este generarea, analiza și preprocesarea unui set de date de rapoarte de mentenanță (text nestructurat) pentru antrenarea unui model de Rețea Neuronală Multi-Task.
 
 ##  1. Structura Repository-ului Github (versiunea Etapei 3)
-
+``
 proiect_dark_data/
 ├── README.md              # Documentația proiectului
 ├── requirements.txt       # Lista dependențelor (tensorflow, pandas, streamlit)
@@ -27,7 +27,7 @@ proiect_dark_data/
     ├── preprocessing/     # Funcții de procesare text (TF-IDF)
     ├── data_acquisition/  # Scripturi generare date (generare_date_v2.py)
     └── neural_network/    # Scripturi antrenare și inferență (antrenare_date_Multitask.py)
-
+``
 ##  2. Descrierea Setului de Date
 
 ### 2.1 Sursa datelor
@@ -44,14 +44,14 @@ proiect_dark_data/
 * **Format fișiere:** ☑ CSV (rapoarte_mentenanta_v2.csv).
 
 ### 2.3 Descrierea fiecărei caracteristici
-
+``
 | **Caracteristică** | **Tip**  **Descriere** | **Domeniu valori** |
 |-------------------|---------|-------------|---------------|--------------------|
 |   text_raport     | text(string) | Descrierea defecțiunii introdusă de operator (input nestructurat). | 0–150 |
 | eticheta_problema | categorial | Tipul tehnic al defecțiunii (Target 1). | {A, B, C} |
 | eticheta_departament | categorial |Departamentul responsabil (Target 2)| 0–2.5 |
 | eticheta_urgenta | categorial |Nivelul de prioritate (Target 3) | ... |
-
+``
 ##  3. Analiza Exploratorie a Datelor (EDA) – Sintetic
 
 ### 3.1 Statistici descriptive aplicate
@@ -120,7 +120,7 @@ src/neural_network/antrenare_date_Multitask.py – codul de preprocesare și ant
 
 ##  6. Stare Etapă (de completat de student)
 
-- [ ] Structură repository configurată
+- [x] Structură repository configurată
 - [x] Dataset analizat (EDA realizată)
 - [x] Date preprocesate
 - [x] Seturi train/val/test generate
