@@ -1,62 +1,103 @@
 import os
-import sys
+import json
 import joblib
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import accuracy_score, f1_score
+from tensorflow.keras.callbacks import EarlyStopping, CSVLogger
+from tensorflow.keras import layers, Model, Input
 
+# Configurare cai
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 INPUT_FILE = os.path.join(BASE_DIR, 'data', 'raw', 'rapoarte_mentenanta_v2.csv')
-OUTPUT_DIR = os.path.join(BASE_DIR, 'data', 'processed')
+MODELS_DIR = os.path.join(BASE_DIR, 'models')
+RESULTS_DIR = os.path.join(BASE_DIR, 'results')
+DOCS_DIR = os.path.join(BASE_DIR, 'docs')
 
 
-def incarca_date():
-    if not os.path.exists(INPUT_FILE):
-        raise FileNotFoundError(f"Nu s-a gasit fisierul: {INPUT_FILE}")
-    return pd.read_csv(INPUT_FILE)
+def setup_directories():
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(DOCS_DIR, exist_ok=True)
 
 
-def antreneaza_model():
-    df = incarca_date()
+def load_data(filepath):
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    return pd.read_csv(filepath)
+
+
+def plot_learning_curves(history, save_path):
+    plt.figure(figsize=(10, 6))
+    # Plotam loss-ul total
+    plt.plot(history.history['loss'], label='Train Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.title('Training Dynamics')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(save_path)
+    plt.close()
+
+
+def main():
+    setup_directories()
+
+    print(f"Loading data from {INPUT_FILE}...")
+    df = load_data(INPUT_FILE)
 
     X_text = df['text_raport'].astype(str).tolist()
 
-    encoder_problema = LabelEncoder()
-    y_problema = encoder_problema.fit_transform(df['eticheta_problema'])
+    # Encodare etichete
+    encoder_prob = LabelEncoder()
+    y_prob = encoder_prob.fit_transform(df['eticheta_problema'])
 
-    encoder_departament = LabelEncoder()
-    y_departament = encoder_departament.fit_transform(df['eticheta_departament'])
+    encoder_dept = LabelEncoder()
+    y_dept = encoder_dept.fit_transform(df['eticheta_departament'])
 
-    encoder_urgenta = LabelEncoder()
-    y_urgenta = encoder_urgenta.fit_transform(df['eticheta_urgenta'])
+    encoder_urg = LabelEncoder()
+    y_urg = encoder_urg.fit_transform(df['eticheta_urgenta'])
 
-    num_clase_problema = len(encoder_problema.classes_)
-    num_clase_departament = len(encoder_departament.classes_)
-    num_clase_urgenta = len(encoder_urgenta.classes_)
+    num_classes_prob = len(encoder_prob.classes_)
+    num_classes_dept = len(encoder_dept.classes_)
+    num_classes_urg = len(encoder_urg.classes_)
 
-    vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), max_features=5000)
+    # Vectorizare
+    vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), max_features=7000)
     X_vec = vectorizer.fit_transform(X_text)
-    X_gata = X_vec.toarray()
+    X_dense = X_vec.toarray()
 
-    X_train, X_test, y_train_prob, y_test_prob, y_train_dep, y_test_dep, y_train_urg, y_test_urg = train_test_split(
-        X_gata, y_problema, y_departament, y_urgenta, test_size=0.2, random_state=42
+    # Split date
+    X_train, X_temp, y_p_train, y_p_temp, y_d_train, y_d_temp, y_u_train, y_u_temp = train_test_split(
+        X_dense, y_prob, y_dept, y_urg, test_size=0.3, random_state=42, stratify=y_prob
     )
 
-    inputs = tf.keras.layers.Input(shape=(X_gata.shape[1],))
-    x = tf.keras.layers.Dense(128, activation='relu')(inputs)
-    x = tf.keras.layers.Dropout(0.3)(x)
-    x = tf.keras.layers.Dense(64, activation='relu')(x)
-    body_output = tf.keras.layers.Dropout(0.3)(x)
+    X_val, X_test, y_p_val, y_p_test, y_d_val, y_d_test, y_u_val, y_u_test = train_test_split(
+        X_temp, y_p_temp, y_d_temp, y_u_temp, test_size=0.5, random_state=42, stratify=y_p_temp
+    )
 
-    output_problema = tf.keras.layers.Dense(num_clase_problema, activation='softmax', name='out_problema')(body_output)
-    output_departament = tf.keras.layers.Dense(num_clase_departament, activation='softmax', name='out_departament')(
-        body_output)
-    output_urgenta = tf.keras.layers.Dense(num_clase_urgenta, activation='softmax', name='out_urgenta')(body_output)
+    # Definire Model
+    input_layer = Input(shape=(X_dense.shape[1],))
+    x = layers.Dense(128, activation='relu')(input_layer)
+    x = layers.Dropout(0.3)(x)
+    x = layers.Dense(64, activation='relu')(x)
+    shared_layer = layers.Dropout(0.3)(x)
 
-    model = tf.keras.Model(inputs=inputs, outputs=[output_problema, output_departament, output_urgenta])
+    # Iesiri cu nume specifice
+    out_prob = layers.Dense(num_classes_prob, activation='softmax', name='out_problema')(shared_layer)
+    out_dept = layers.Dense(num_classes_dept, activation='softmax', name='out_departament')(shared_layer)
+    out_urg = layers.Dense(num_classes_urg, activation='softmax', name='out_urgenta')(shared_layer)
 
+    model = Model(inputs=input_layer, outputs=[out_prob, out_dept, out_urg])
+
+    # --- CORECTIE AICI ---
+    # Specificam explicit loss si metrics pentru FIECARE iesire folosind dictionar
     model.compile(
         optimizer='adam',
         loss={
@@ -71,27 +112,65 @@ def antreneaza_model():
         }
     )
 
-    model.fit(
+    callbacks = [
+        EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True, verbose=1),
+        CSVLogger(os.path.join(RESULTS_DIR, 'training_history.csv'))
+    ]
+
+    print("Starting training...")
+    # Trebuie sa pasam target-urile tot ca dictionar pentru a fi sigur
+    history = model.fit(
         X_train,
-        {'out_problema': y_train_prob, 'out_departament': y_train_dep, 'out_urgenta': y_train_urg},
-        epochs=15,
+        {
+            'out_problema': y_p_train,
+            'out_departament': y_d_train,
+            'out_urgenta': y_u_train
+        },
+        epochs=30,
         batch_size=32,
-        validation_data=(X_test,
-                         {'out_problema': y_test_prob, 'out_departament': y_test_dep, 'out_urgenta': y_test_urg}),
+        validation_data=(
+            X_val,
+            {
+                'out_problema': y_p_val,
+                'out_departament': y_d_val,
+                'out_urgenta': y_u_val
+            }
+        ),
+        callbacks=callbacks,
         verbose=1
     )
 
-    if not os.path.exists(OUTPUT_DIR):
-        os.makedirs(OUTPUT_DIR)
+    plot_learning_curves(history, os.path.join(DOCS_DIR, 'loss_curve.png'))
 
-    model.save(os.path.join(OUTPUT_DIR, 'model_dispecer_v2.keras'))
-    joblib.dump(vectorizer, os.path.join(OUTPUT_DIR, 'vectorizer_v2.joblib'))
-    joblib.dump(encoder_problema, os.path.join(OUTPUT_DIR, 'encoder_problema_v2.joblib'))
-    joblib.dump(encoder_departament, os.path.join(OUTPUT_DIR, 'encoder_departament_v2.joblib'))
-    joblib.dump(encoder_urgenta, os.path.join(OUTPUT_DIR, 'encoder_urgenta_v2.joblib'))
+    print("Evaluating on Test Set...")
+    preds = model.predict(X_test, verbose=0)
 
-    print(f"Modele salvate in: {OUTPUT_DIR}")
+    # preds[0] este output-ul pentru problema
+    pred_prob_indices = np.argmax(preds[0], axis=1)
+
+    acc = accuracy_score(y_p_test, pred_prob_indices)
+    f1 = f1_score(y_p_test, pred_prob_indices, average='macro')
+
+    metrics = {
+        "test_accuracy": float(acc),
+        "test_f1_macro": float(f1)
+    }
+
+    with open(os.path.join(RESULTS_DIR, 'test_metrics.json'), 'w') as f:
+        json.dump(metrics, f, indent=4)
+
+    print(f"Test Accuracy: {acc:.4f}")
+    print(f"Test F1 Score: {f1:.4f}")
+
+    print("Saving artifacts...")
+    model.save(os.path.join(MODELS_DIR, 'trained_model.h5'))
+    joblib.dump(vectorizer, os.path.join(MODELS_DIR, 'vectorizer_v2.joblib'))
+    joblib.dump(encoder_prob, os.path.join(MODELS_DIR, 'encoder_problema_v2.joblib'))
+    joblib.dump(encoder_dept, os.path.join(MODELS_DIR, 'encoder_departament_v2.joblib'))
+    joblib.dump(encoder_urg, os.path.join(MODELS_DIR, 'encoder_urgenta_v2.joblib'))
+
+    print("Training pipeline completed successfully.")
 
 
 if __name__ == "__main__":
-    antreneaza_model()
+    main()

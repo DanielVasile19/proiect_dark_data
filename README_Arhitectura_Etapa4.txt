@@ -10,7 +10,7 @@
 
 ## Scopul Etapei 4
 
-În această etapă se livrează scheletul complet și funcțional al sistemului **"Dispecer Inteligent pentru Mentenanță (Dark Data Analysis)"**. Sistemul este capabil să genereze date, să definească o arhitectură de Rețea Neuronală Multi-Task și să ruleze un flux complet de la input-ul utilizatorului până la output și colectarea feedback-ului (Human-in-the-Loop).
+În această etapă se livrează scheletul complet și funcțional al sistemului **"Analiza si Clasificarea Automata a Rapoartelor de Mentenanta Industriala "**. Sistemul este capabil să genereze date, să definească o arhitectură de Rețea Neuronală Multi-Task și să ruleze un flux complet de la input-ul utilizatorului până la output și colectarea feedback-ului.
 
 ---
 
@@ -20,7 +20,7 @@
 |---------------------------|--------------------------------|--------------------------------|
 | **Reducerea timpului de triaj** al rapoartelor de mentenanță scrise manual (text liber) | Clasificare automată a textului în < 1 secundă pentru identificarea problemei și departamentului. | **Modul 2 (RN)** + **Modul 3 (UI)** |
 | **Eliminarea erorilor de alocare** (ex. trimiterea unui mecanic la o problemă software) | Predicție Multi-Task cu acuratețe țintă > 85% pentru rutarea tichetului către departamentul corect. | **Modul 2 (RN - Multi-Output)** |
-| **Adaptarea la jargonul specific** și erorile de scriere ale operatorilor | Antrenare continuă pe date corectate de om (Human-in-the-Loop), salvând feedback-ul pentru re-antrenare. | **Modul 3 (UI - Feedback)** |
+| **Adaptarea la jargonul specific** și erorile de scriere ale operatorilor | Antrenare continuă pe date corectate de om, salvând feedback-ul pentru re-antrenare. | **Modul 3 (UI - Feedback)** |
 
 ---
 
@@ -38,9 +38,9 @@
 [ ] Date sintetice prin metode avansate  
 
 **Descriere detaliată:**
-Proiectul utilizează o abordare de **Generare de Date Sintetice (Synthetic Data Generation)** pentru a simula scenarii industriale reale ("Dark Data"). Deoarece datele reale de mentenanță sunt confidențiale, am dezvoltat un generator propriu (`generare_date_v2.py`) care:
+Proiectul utilizează o abordare de **Generare de Date Sintetice** pentru a simula scenarii industriale reale. Deoarece datele reale de mentenanță sunt confidențiale, am dezvoltat un generator propriu care:
 1.  Combină un vocabular tehnic extins (defecte mecanice, electrice, software).
-2.  Introduce programatic "zgomot" specific factorului uman: greșeli de scriere (typos), variații de topică, abrevieri și jargon informal.
+2.  Introduce greșeli specifice factorului uman: erori de scriere, variații de topică, abrevieri și jargon informal.
 3.  Generează automat etichetele corecte (Problemă, Departament, Urgență) pe baza unor reguli de business predefinite.
 
 Această metodă asigură un dataset perfect balansat și etichetat corect, esențial pentru antrenarea supravegheată a modelului Multi-Task.
@@ -61,7 +61,7 @@ Această metodă asigură un dataset perfect balansat și etichetat corect, esen
 
 ### Justificarea State Machine-ului ales:
 
-Am ales o arhitectură de tip **Human-in-the-Loop (HITL)** deoarece în domeniul mentenanței industriale, expertiza umană este critică, iar un model AI nu poate fi lăsat să ia decizii autonome de alocare a resurselor fără posibilitatea de corecție.
+Am ales o arhitectură de tip feedback deoarece în domeniul mentenanței industriale, expertiza umană este critică, iar un model AI nu poate fi lăsat să ia decizii autonome de alocare a resurselor fără posibilitatea de corecție.
 
 **Stările principale sunt:**
 1.  **IDLE:** Sistemul așteaptă input de la operator.
