@@ -12,7 +12,6 @@ from sklearn.metrics import accuracy_score, f1_score
 from tensorflow.keras.callbacks import EarlyStopping, CSVLogger
 from tensorflow.keras import layers, Model, Input
 
-# Configurare cai
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 INPUT_FILE = os.path.join(BASE_DIR, 'data', 'raw', 'rapoarte_mentenanta_v2.csv')
 MODELS_DIR = os.path.join(BASE_DIR, 'models')
@@ -34,7 +33,6 @@ def load_data(filepath):
 
 def plot_learning_curves(history, save_path):
     plt.figure(figsize=(10, 6))
-    # Plotam loss-ul total
     plt.plot(history.history['loss'], label='Train Loss')
     plt.plot(history.history['val_loss'], label='Validation Loss')
     plt.title('Training Dynamics')
@@ -54,7 +52,6 @@ def main():
 
     X_text = df['text_raport'].astype(str).tolist()
 
-    # Encodare etichete
     encoder_prob = LabelEncoder()
     y_prob = encoder_prob.fit_transform(df['eticheta_problema'])
 
@@ -68,12 +65,10 @@ def main():
     num_classes_dept = len(encoder_dept.classes_)
     num_classes_urg = len(encoder_urg.classes_)
 
-    # Vectorizare
     vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), max_features=7000)
     X_vec = vectorizer.fit_transform(X_text)
     X_dense = X_vec.toarray()
 
-    # Split date
     X_train, X_temp, y_p_train, y_p_temp, y_d_train, y_d_temp, y_u_train, y_u_temp = train_test_split(
         X_dense, y_prob, y_dept, y_urg, test_size=0.3, random_state=42, stratify=y_prob
     )
@@ -82,22 +77,18 @@ def main():
         X_temp, y_p_temp, y_d_temp, y_u_temp, test_size=0.5, random_state=42, stratify=y_p_temp
     )
 
-    # Definire Model
     input_layer = Input(shape=(X_dense.shape[1],))
     x = layers.Dense(128, activation='relu')(input_layer)
     x = layers.Dropout(0.3)(x)
     x = layers.Dense(64, activation='relu')(x)
     shared_layer = layers.Dropout(0.3)(x)
 
-    # Iesiri cu nume specifice
     out_prob = layers.Dense(num_classes_prob, activation='softmax', name='out_problema')(shared_layer)
     out_dept = layers.Dense(num_classes_dept, activation='softmax', name='out_departament')(shared_layer)
     out_urg = layers.Dense(num_classes_urg, activation='softmax', name='out_urgenta')(shared_layer)
 
     model = Model(inputs=input_layer, outputs=[out_prob, out_dept, out_urg])
 
-    # --- CORECTIE AICI ---
-    # Specificam explicit loss si metrics pentru FIECARE iesire folosind dictionar
     model.compile(
         optimizer='adam',
         loss={
@@ -118,7 +109,7 @@ def main():
     ]
 
     print("Starting training...")
-    # Trebuie sa pasam target-urile tot ca dictionar pentru a fi sigur
+
     history = model.fit(
         X_train,
         {
@@ -145,7 +136,6 @@ def main():
     print("Evaluating on Test Set...")
     preds = model.predict(X_test, verbose=0)
 
-    # preds[0] este output-ul pentru problema
     pred_prob_indices = np.argmax(preds[0], axis=1)
 
     acc = accuracy_score(y_p_test, pred_prob_indices)
