@@ -1999,3 +1999,5 @@
 2025-04-11,temperatura e prea mare robot 5. Trebuie verificat în următoarele 24 de ore. Producția e încetinită.,supraincalzire,robot_5,medie,Mecanic
 2024-05-08,"nu mai pompeaza pompa în zona axei 3. Urgent, linia blocata.",pompa_blocata,axa_3,critica,Mecanic
 2025-05-26,Un senzor este offline la brațul robotic 5. Incetineste productia.,senzor_offline,robot_5,medie,Automatist
+2025-12-18 09:06:55.259786,"plc ars langa pompa, s-a oprit productia.",senzor_offline,Electric,critica,Feedback_UI
+2025-12-18 09:27:25.688222,nu mai este internet in magazie,eroare_software,Software,mica,Feedback_UI
