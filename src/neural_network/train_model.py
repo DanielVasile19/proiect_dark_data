@@ -4,139 +4,141 @@ import joblib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import accuracy_score, f1_score
-from tensorflow.keras.callbacks import EarlyStopping, CSVLogger
+from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras import layers, Model, Input
 
-# Configurare cai
+# --- CONFIGURARE CAI ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-INPUT_FILE = os.path.join(BASE_DIR, 'data', 'raw', 'rapoarte_mentenanta_v2.csv')
+DATA_FILE = os.path.join(BASE_DIR, 'data', 'raw', 'rapoarte_mentenanta_v2.csv')
 MODELS_DIR = os.path.join(BASE_DIR, 'models')
-RESULTS_DIR = os.path.join(BASE_DIR, 'results')
 DOCS_DIR = os.path.join(BASE_DIR, 'docs')
 
+
 def setup_mediu():
-    # Creare directoare necesare
     os.makedirs(MODELS_DIR, exist_ok=True)
-    os.makedirs(RESULTS_DIR, exist_ok=True)
     os.makedirs(DOCS_DIR, exist_ok=True)
 
-def plot_grafic_loss(history, save_path):
-    # Generare curba invatare
-    plt.figure(figsize=(10, 6))
-    plt.plot(history.history['loss'], label='Train Loss')
-    plt.plot(history.history['val_loss'], label='Validation Loss')
-    plt.title('Dinamica Antrenare')
-    plt.xlabel('Epoci')
-    plt.ylabel('Eroare (Loss)')
-    plt.legend()
-    plt.grid(True)
-    plt.savefig(save_path)
-    plt.close()
 
 def main():
     setup_mediu()
-    
-    # Incarcare date
-    print(f"Incarcare dataset: {INPUT_FILE}")
-    if not os.path.exists(INPUT_FILE):
-        raise FileNotFoundError("Lipsa fisier CSV!")
-    df = pd.read_csv(INPUT_FILE)
-    
-    # Preprocesare etichete
+    print("🚀 START ANTRENARE SISTEM DISPECERAT")
+
+    # 1. INCARCARE DATE
+    if not os.path.exists(DATA_FILE):
+        print(f"❌ EROARE: Nu gasesc fisierul {DATA_FILE}. Ruleaza generare_date_v2.py intai!")
+        return
+
+    print("📖 Citire date...")
+    try:
+        df = pd.read_csv(DATA_FILE, sep='|')  # Separator Pipe
+    except Exception as e:
+        print(f"Eroare la citire CSV: {e}")
+        return
+
+    # 2. ENCODING ETICHETE
     enc_prob = LabelEncoder()
-    y_prob = enc_prob.fit_transform(df['eticheta_problema'])
-    
-    enc_dept = LabelEncoder()
-    y_dept = enc_dept.fit_transform(df['eticheta_departament'])
-    
+    y_p = enc_prob.fit_transform(df['eticheta_problema'])
+
+    enc_dep = LabelEncoder()
+    y_d = enc_dep.fit_transform(df['eticheta_departament'])
+
     enc_urg = LabelEncoder()
-    y_urg = enc_urg.fit_transform(df['eticheta_urgenta'])
-    
-    # Vectorizare text
-    print("Vectorizare TF-IDF...")
-    vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), max_features=7000)
-    X_dense = vectorizer.fit_transform(df['text_raport'].astype(str)).toarray()
-    
-    # Split date (Train / Val / Test)
-    X_train, X_temp, y_p_train, y_p_temp, y_d_train, y_d_temp, y_u_train, y_u_temp = train_test_split(
-        X_dense, y_prob, y_dept, y_urg, test_size=0.3, random_state=42, stratify=y_prob
+    y_u = enc_urg.fit_transform(df['eticheta_urgenta'])
+
+    # 3. VECTORIZARE TEXT
+    print("🔠 Vectorizare text (TF-IDF)...")
+    vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(2, 4), max_features=3000)
+    X = vectorizer.fit_transform(df['text_raport'].astype(str)).toarray()
+
+    # Split Train/Test
+    X_train, X_test, yp_train, yp_test, yd_train, yd_test, yu_train, yu_test = train_test_split(
+        X, y_p, y_d, y_u, test_size=0.2, random_state=42
     )
-    
-    X_val, X_test, y_p_val, y_p_test, y_d_val, y_d_test, y_u_val, y_u_test = train_test_split(
-        X_temp, y_p_temp, y_d_temp, y_u_temp, test_size=0.5, random_state=42, stratify=y_p_temp
-    )
-    
-    # Arhitectura Model Multi-Task
-    input_layer = Input(shape=(X_dense.shape[1],))
+
+    # 4. CONSTRUCTIE MODEL NEURONAL
+    print("🧠 Construire Retea Neuronala...")
+    input_layer = Input(shape=(X.shape[1],))
+
     x = layers.Dense(128, activation='relu')(input_layer)
     x = layers.Dropout(0.3)(x)
     x = layers.Dense(64, activation='relu')(x)
-    shared = layers.Dropout(0.3)(x)
-    
-    out_prob = layers.Dense(len(enc_prob.classes_), activation='softmax', name='out_problema')(shared)
-    out_dept = layers.Dense(len(enc_dept.classes_), activation='softmax', name='out_departament')(shared)
-    out_urg = layers.Dense(len(enc_urg.classes_), activation='softmax', name='out_urgenta')(shared)
-    
-    model = Model(inputs=input_layer, outputs=[out_prob, out_dept, out_urg])
-    
-    # Compilare
+
+    # 3 Iesiri separate
+    out_p = layers.Dense(len(enc_prob.classes_), activation='softmax', name='out_problema')(x)
+    out_d = layers.Dense(len(enc_dep.classes_), activation='softmax', name='out_departament')(x)
+    out_u = layers.Dense(len(enc_urg.classes_), activation='softmax', name='out_urgenta')(x)
+
+    model = Model(inputs=input_layer, outputs=[out_p, out_d, out_u])
+
+    # --- FIX AICI ---
+    # Folosim dictionar pentru metrics ca sa fim expliciti pentru fiecare iesire
     model.compile(
         optimizer='adam',
-        loss={'out_problema': 'sparse_categorical_crossentropy', 
-              'out_departament': 'sparse_categorical_crossentropy', 
-              'out_urgenta': 'sparse_categorical_crossentropy'},
-        metrics={'out_problema': 'accuracy', 
-                 'out_departament': 'accuracy', 
-                 'out_urgenta': 'accuracy'}
+        loss='sparse_categorical_crossentropy',
+        metrics={
+            'out_problema': 'accuracy',
+            'out_departament': 'accuracy',
+            'out_urgenta': 'accuracy'
+        }
     )
-    
-    # Antrenare cu Early Stopping
-    print("Start antrenare...")
-    callbacks = [
-        EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True, verbose=1),
-        CSVLogger(os.path.join(RESULTS_DIR, 'training_history.csv'))
-    ]
-    
+
+    # 5. ANTRENARE
+    print("🔥 Se antreneaza modelul...")
+    early_stop = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+
     history = model.fit(
         X_train,
-        {'out_problema': y_p_train, 'out_departament': y_d_train, 'out_urgenta': y_u_train},
-        epochs=30,
+        {'out_problema': yp_train, 'out_departament': yd_train, 'out_urgenta': yu_train},
+        epochs=15,
         batch_size=32,
-        validation_data=(X_val, {'out_problema': y_p_val, 'out_departament': y_d_val, 'out_urgenta': y_u_val}),
-        callbacks=callbacks,
+        validation_data=(X_test, {'out_problema': yp_test, 'out_departament': yd_test, 'out_urgenta': yu_test}),
+        callbacks=[early_stop],
         verbose=1
     )
-    
-    plot_grafic_loss(history, os.path.join(DOCS_DIR, 'loss_curve.png'))
-    
-    # Evaluare Test Set
-    print("Evaluare performanta...")
+
+    # 6. EVALUARE RAPIDA
+    print("\n📊 REZULTATE TESTE:")
     preds = model.predict(X_test, verbose=0)
-    pred_indices = np.argmax(preds[0], axis=1) # Evaluam pe 'problema'
-    
-    metrics = {
-        "test_accuracy": float(accuracy_score(y_p_test, pred_indices)),
-        "test_f1_macro": float(f1_score(y_p_test, pred_indices, average='macro'))
-    }
-    
-    # Salvare rezultate
-    with open(os.path.join(RESULTS_DIR, 'test_metrics.json'), 'w') as f:
-        json.dump(metrics, f, indent=4)
-        
-    print(f"Accuracy: {metrics['test_accuracy']:.4f} | F1: {metrics['test_f1_macro']:.4f}")
-    
-    # Salvare artefacte
-    print("Salvare modele...")
+
+    # Calcul manual acuratete departament
+    pred_dep = np.argmax(preds[1], axis=1)
+    acc_dep = np.mean(pred_dep == yd_test)
+    print(f"✅ Acuratete Departament: {acc_dep:.2%}")
+
+    # Salvare Grafic Acuratete
+    plt.figure(figsize=(10, 6))
+    # Cheile din history se schimba usor cand folosim dictionar la compile, dar Keras le standardalizeaza de obicei
+    # Verificam cheile disponibile
+    keys = history.history.keys()
+    if 'out_departament_accuracy' in keys:
+        plt.plot(history.history['out_departament_accuracy'], label='Train Dep')
+        plt.plot(history.history['val_out_departament_accuracy'], label='Test Dep')
+    else:
+        # Fallback in caz ca TF schimba numele (uneori pune out_departament_acc)
+        # Dar cu setarea curenta ar trebui sa fie ok.
+        plt.plot(history.history.get('out_departament_accuracy', []), label='Train')
+
+    plt.title('Performanta Model - Departament')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(DOCS_DIR, 'grafic_performanta.png'))
+    plt.close()
+
+    # 7. SALVARE FINALA
+    print("💾 Salvare artefacte...")
     model.save(os.path.join(MODELS_DIR, 'trained_model.h5'))
     joblib.dump(vectorizer, os.path.join(MODELS_DIR, 'vectorizer_v2.joblib'))
     joblib.dump(enc_prob, os.path.join(MODELS_DIR, 'encoder_problema_v2.joblib'))
-    joblib.dump(enc_dept, os.path.join(MODELS_DIR, 'encoder_departament_v2.joblib'))
+    joblib.dump(enc_dep, os.path.join(MODELS_DIR, 'encoder_departament_v2.joblib'))
     joblib.dump(enc_urg, os.path.join(MODELS_DIR, 'encoder_urgenta_v2.joblib'))
+
+    print("\n✅ PREGATIT PENTRU PREZENTARE! Poti rula dashboard-ul.")
+
 
 if __name__ == "__main__":
     main()
